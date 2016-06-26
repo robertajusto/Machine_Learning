@@ -1,0 +1,148 @@
+---
+title: "Prediction Assignment Writeup"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Instructions
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+ They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Loading Data
+preparing libraries:
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+library (rattle)
+```
+reading data:
+```{r}
+trainpml = read.csv("~/pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+testpml = read.csv("~/pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+dim(trainpml)
+dim(testpml)
+```
+##Data Partition
+Let큦 now split the training set into a new training set 60% and a validation set 40%
+```{r}
+inTrain <- createDataPartition(trainpml$classe, p=0.60, list=F)
+trainData <- trainpml[inTrain, ]
+testData <- trainpml[-inTrain, ]
+```
+
+##Clean the data
+```{r}
+myDataNZV <- nearZeroVar(trainData, saveMetrics=TRUE)
+
+myNZVvars <- names(trainData) %in% c("new_window", "kurtosis_roll_belt", "kurtosis_picth_belt",
+"kurtosis_yaw_belt", "skewness_roll_belt", "skewness_roll_belt.1", "skewness_yaw_belt",
+"max_yaw_belt", "min_yaw_belt", "amplitude_yaw_belt", "avg_roll_arm", "stddev_roll_arm",
+"var_roll_arm", "avg_pitch_arm", "stddev_pitch_arm", "var_pitch_arm", "avg_yaw_arm",
+"stddev_yaw_arm", "var_yaw_arm", "kurtosis_roll_arm", "kurtosis_picth_arm",
+"kurtosis_yaw_arm", "skewness_roll_arm", "skewness_pitch_arm", "skewness_yaw_arm",
+"max_roll_arm", "min_roll_arm", "min_pitch_arm", "amplitude_roll_arm", "amplitude_pitch_arm",
+"kurtosis_roll_dumbbell", "kurtosis_picth_dumbbell", "kurtosis_yaw_dumbbell", "skewness_roll_dumbbell",
+"skewness_pitch_dumbbell", "skewness_yaw_dumbbell", "max_yaw_dumbbell", "min_yaw_dumbbell",
+"amplitude_yaw_dumbbell", "kurtosis_roll_forearm", "kurtosis_picth_forearm", "kurtosis_yaw_forearm",
+"skewness_roll_forearm", "skewness_pitch_forearm", "skewness_yaw_forearm", "max_roll_forearm",
+"max_yaw_forearm", "min_roll_forearm", "min_yaw_forearm", "amplitude_roll_forearm",
+"amplitude_yaw_forearm", "avg_roll_forearm", "stddev_roll_forearm", "var_roll_forearm",
+"avg_pitch_forearm", "stddev_pitch_forearm", "var_pitch_forearm", "avg_yaw_forearm",
+"stddev_yaw_forearm", "var_yaw_forearm")
+trainData <- trainData[!myNZVvars]
+
+dim(trainData)
+```
+
+Now let큦 remove the ID collumn:
+
+```{r}
+trainData <- trainData[c(-1)]
+
+dim(trainData)
+```
+Removing variables with more than 60% NAs
+```{r}
+trainData_n <- trainData #creating another subset to iterate in loop
+for(i in 1:length(trainData)) { #for every column in the training dataset
+        if( sum( is.na( trainData[, i] ) ) /nrow(trainData) >= .6 ) { #if n?? NAs > 60% of total observations
+        for(j in 1:length(trainData_n)) {
+            if( length( grep(names(trainData[i]), names(trainData_n)[j]) ) ==1)  { #if the columns are the same:
+                trainData_n <- trainData_n[ , -j] #Remove that column
+            }   
+        } 
+    }
+}
+
+dim(trainData_n)
+
+trainData <- trainData_n
+rm(trainData_n)
+```
+Cleaning the other data sets.
+```{r}
+clean1 <- colnames(trainData)
+clean2 <- colnames(trainData[, -58]) #already with classe column removed
+testData <- testData[clean1]
+testpml <- testpml[clean2]
+
+```
+
+## Model testing - Decision Tree
+Let큦 test a decision tree
+
+```{r}
+mod_tree <- rpart(classe ~ ., data=trainData, method="class")
+```
+Now let큦 plot the tree:
+
+```{r}
+fancyRpartPlot(mod_tree)
+```
+ Predict
+```{r}
+predict_tree <- predict(mod_tree, testData, type = "class")
+```
+Now let큦 see the results:
+```{r}
+confusionMatrix(predict_tree, testData$classe)
+```
+This model presented a 83.84% accuracy.
+
+## Model testing - Random Forests
+Now, let큦 use Random Forests to fit our model:
+```{r}
+mod_rf <- randomForest(classe ~. , data=trainData)
+```
+
+Predicting:
+```{r}
+predict_rf <- predict(mod_rf, testData, type = "class")
+```
+Now let큦 see the results:
+```{r}
+confusionMatrix(predict_rf, testData$classe)
+```
+This model presented a 99.79% accuracy.
+ 
+## Conclusion
+
+Comparing both models we could see that the Randon Forest is more accurate than the decision tree.
